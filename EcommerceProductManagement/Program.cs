@@ -1,4 +1,3 @@
-using EcommerceProductManagement;
 using EcommerceProductManagement.Data;
 using EcommerceProductManagement.Repositories;
 using EcommerceProductManagement.Repositories.Interfaces;

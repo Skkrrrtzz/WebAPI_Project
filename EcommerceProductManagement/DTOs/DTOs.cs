@@ -1,4 +1,6 @@
-﻿namespace EcommerceProductManagement.DTOs
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace EcommerceProductManagement.DTOs
 {
     public class DTOs
     {
@@ -15,10 +17,17 @@
 
         public class CreateProductDto
         {
+            [Required]
             public string Name { get; set; } = string.Empty;
+
             public string? Description { get; set; }
+
+            [Range(0, double.MaxValue)]
             public decimal Price { get; set; }
+
+            [Range(0, int.MaxValue)]
             public int StockQuantity { get; set; }
+
             public List<int> CategoryIds { get; set; } = new List<int>(); // List of Category IDs
         }
 
@@ -41,7 +50,11 @@
 
         public class CreateCategoryDto
         {
+            [Required]
+            [MaxLength(100)]
             public string Name { get; set; } = string.Empty;
+
+            [MaxLength(500)]
             public string? Description { get; set; }
         }
 

@@ -4,6 +4,7 @@ using EcommerceProductManagement.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EcommerceProductManagement.Migrations
 {
     [DbContext(typeof(ECommerceDbContext))]
-    partial class ECommerceDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250301113040_AddedIsDeletedProducts")]
+    partial class AddedIsDeletedProducts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -42,68 +45,6 @@ namespace EcommerceProductManagement.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Categories");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Description = "All electronic devices, including gadgets, appliances, and accessories.",
-                            Name = "Electronics"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Description = "Trendy clothing, shoes, and accessories for men, women, and kids.",
-                            Name = "Fashion"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Description = "Furniture, appliances, cookware, and home decor items.",
-                            Name = "Home & Kitchen"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Description = "Skincare, haircare, cosmetics, and grooming products.",
-                            Name = "Beauty & Personal Care"
-                        },
-                        new
-                        {
-                            Id = 5,
-                            Description = "Sports gear, fitness equipment, and outdoor adventure essentials.",
-                            Name = "Sports & Outdoors"
-                        },
-                        new
-                        {
-                            Id = 6,
-                            Description = "Car accessories, parts, and maintenance products.",
-                            Name = "Automotive"
-                        },
-                        new
-                        {
-                            Id = 7,
-                            Description = "Novels, textbooks, office supplies, and study materials.",
-                            Name = "Books & Stationery"
-                        },
-                        new
-                        {
-                            Id = 8,
-                            Description = "Kids' toys, board games, and video gaming accessories.",
-                            Name = "Toys & Games"
-                        },
-                        new
-                        {
-                            Id = 9,
-                            Description = "Supplements, fitness gear, and medical essentials.",
-                            Name = "Health & Wellness"
-                        },
-                        new
-                        {
-                            Id = 10,
-                            Description = "Food, beverages, and daily household necessities.",
-                            Name = "Groceries & Essentials"
-                        });
                 });
 
             modelBuilder.Entity("EcommerceProductManagement.Models.Models+Order", b =>

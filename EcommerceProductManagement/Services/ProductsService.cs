@@ -8,154 +8,199 @@ namespace EcommerceProductManagement.Services
     {
         private readonly IProductsRepository _productsRepository;
         private readonly ICategoriesRepository _categoriesRepository;
+        private readonly ILogger<ProductsService> _logger;
 
-        public ProductsService(IProductsRepository productsRepository, ICategoriesRepository categoriesRepository)
+        public ProductsService(IProductsRepository productsRepository, ICategoriesRepository categoriesRepository, ILogger<ProductsService> logger)
         {
             _productsRepository = productsRepository;
             _categoriesRepository = categoriesRepository;
+            _logger = logger;
         }
 
-        public async Task<List<ProductDto>> GetAllProductsAsync()
+        public async Task<List<ProductDto>> GetAllProductsAsync(int page, int pageSize)
         {
-            var products = await _productsRepository.GetAllAsync();
-            return products.Select(p => new ProductDto
+            try
             {
-                Id = p.Id,
-                Name = p.Name,
-                Description = p.Description,
-                Price = p.Price,
-                StockQuantity = p.StockQuantity,
-                // Include categories as a list of category IDs or category names in the DTO
-                CategoryIds = p.ProductCategories.Select(pc => pc.CategoryId).ToList()
-            }).ToList();
+                var products = await _productsRepository.GetAllAsync(
+            page: page,
+            pageSize: pageSize,
+            includeRelated: true);
+
+                return products.Select(p => new ProductDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description,
+                    Price = p.Price,
+                    StockQuantity = p.StockQuantity,
+                    CategoryIds = p.ProductCategories.Select(pc => pc.CategoryId).ToList()
+                }).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred while retrieving products.");
+                throw;
+            }
         }
 
         public async Task<ProductDto?> GetProductByIdAsync(int id)
         {
-            var product = await _productsRepository.GetByIdAsync(id);
-            if (product == null) return null;
-
-            return new ProductDto
+            try
             {
-                Id = product.Id,
-                Name = product.Name,
-                Description = product.Description,
-                Price = product.Price,
-                StockQuantity = product.StockQuantity,
-                CategoryIds = product.ProductCategories.Select(pc => pc.CategoryId).ToList() // Categories for the product
-            };
+                var product = await _productsRepository.GetByIdAsync(
+           id: id,
+           includeRelated: true);
+
+                if (product == null) return null;
+
+                return new ProductDto
+                {
+                    Id = product.Id,
+                    Name = product.Name,
+                    Description = product.Description,
+                    Price = product.Price,
+                    StockQuantity = product.StockQuantity,
+                    CategoryIds = product.ProductCategories.Select(pc => pc.CategoryId).ToList()
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"An error occurred while retrieving product with ID {id}.");
+                throw;
+            }
         }
 
         public async Task<ProductDto> CreateProductAsync(CreateProductDto dto)
         {
-            // Validate categories
-            if (dto.CategoryIds == null || !dto.CategoryIds.Any())
+            try
             {
-                throw new InvalidOperationException("At least one category must be selected.");
-            }
-
-            var categories = new List<Category>();
-            foreach (var categoryId in dto.CategoryIds)
-            {
-                var category = await _categoriesRepository.GetByIdAsync(categoryId);
-                if (category == null)
+                if (dto.CategoryIds == null || !dto.CategoryIds.Any())
                 {
-                    throw new InvalidOperationException($"Category with ID {categoryId} does not exist.");
+                    throw new InvalidOperationException("At least one category must be selected.");
                 }
-                categories.Add(category);
-            }
 
-            var product = new Product
-            {
-                Name = dto.Name,
-                Description = dto.Description ?? "N/A",
-                Price = dto.Price,
-                StockQuantity = dto.StockQuantity
-            };
+                var categories = await _categoriesRepository.GetByIdsAsync(dto.CategoryIds);
 
-            await _productsRepository.AddAsync(product);
-
-            // Create ProductCategory links (many-to-many relationship)
-            foreach (var category in categories)
-            {
-                product.ProductCategories.Add(new ProductCategory
+                if (categories.Count != dto.CategoryIds.Count)
                 {
-                    ProductId = product.Id,
-                    CategoryId = category.Id
-                });
+                    throw new InvalidOperationException("One or more categories do not exist.");
+                }
+
+                var product = new Product
+                {
+                    Name = dto.Name,
+                    Description = dto.Description ?? "N/A",
+                    Price = dto.Price,
+                    StockQuantity = dto.StockQuantity,
+                    ProductCategories = categories.Select(c => new ProductCategory
+                    {
+                        CategoryId = c.Id
+                    }).ToList()
+                };
+
+                await _productsRepository.AddAsync(product);
+                await _productsRepository.SaveChangesAsync();
+
+                return new ProductDto
+                {
+                    Id = product.Id,
+                    Name = product.Name,
+                    Description = product.Description,
+                    Price = product.Price,
+                    StockQuantity = product.StockQuantity,
+                    CategoryIds = product.ProductCategories.Select(pc => pc.CategoryId).ToList()
+                };
             }
-
-            // Save product with categories
-            await _productsRepository.UpdateAsync(product);
-
-            return new ProductDto
+            catch (Exception ex)
             {
-                Id = product.Id,
-                Name = product.Name,
-                Description = product.Description,
-                Price = product.Price,
-                StockQuantity = product.StockQuantity,
-                CategoryIds = product.ProductCategories.Select(pc => pc.CategoryId).ToList() // Return category IDs in DTO
-            };
+                _logger.LogError(ex, "An error occurred while creating a product.");
+                throw;
+            }
         }
 
         public async Task<ProductDto?> UpdateProductAsync(int id, UpdateProductDto dto)
         {
-            var product = await _productsRepository.GetByIdAsync(id);
-            if (product == null) return null;
-
-            // Validate category IDs if provided
-            if (dto.CategoryIds != null)
+            try
             {
-                var categories = new List<Category>();
-                foreach (var categoryId in dto.CategoryIds)
+                var product = await _productsRepository.GetByIdAsync(id, includeRelated: true);
+                if (product == null) return null;
+
+                // Update product properties
+                product.Name = dto.Name ?? product.Name;
+                product.Description = dto.Description ?? product.Description;
+                product.Price = dto.Price ?? product.Price;
+                product.StockQuantity = dto.StockQuantity ?? product.StockQuantity;
+
+                // Update categories if provided
+                if (dto.CategoryIds != null)
                 {
-                    var category = await _categoriesRepository.GetByIdAsync(categoryId);
-                    if (category == null)
+                    // Remove existing ProductCategory relationships
+                    var existingProductCategories = product.ProductCategories.ToList();
+                    foreach (var productCategory in existingProductCategories)
                     {
-                        throw new InvalidOperationException($"Category with ID {categoryId} does not exist.");
+                        product.ProductCategories.Remove(productCategory);
                     }
-                    categories.Add(category);
-                }
 
-                // Update the ProductCategories relationship (many-to-many)
-                product.ProductCategories.Clear(); // Remove existing category links
-                foreach (var category in categories)
-                {
-                    product.ProductCategories.Add(new ProductCategory
+                    // Add new ProductCategory relationships
+                    foreach (var categoryId in dto.CategoryIds)
                     {
-                        ProductId = product.Id,
-                        CategoryId = category.Id
-                    });
+                        var category = await _categoriesRepository.GetByIdAsync(categoryId);
+                        if (category == null)
+                        {
+                            throw new InvalidOperationException($"Category with ID {categoryId} does not exist.");
+                        }
+
+                        product.ProductCategories.Add(new ProductCategory
+                        {
+                            ProductId = product.Id,
+                            CategoryId = category.Id
+                        });
+                    }
                 }
+
+                // Save changes
+                await _productsRepository.UpdateAsync(product);
+
+                return new ProductDto
+                {
+                    Id = product.Id,
+                    Name = product.Name,
+                    Description = product.Description,
+                    Price = product.Price,
+                    StockQuantity = product.StockQuantity,
+                    CategoryIds = product.ProductCategories.Select(pc => pc.CategoryId).ToList()
+                };
             }
-
-            product.Name = dto.Name ?? "N/A";
-            product.Description = dto.Description ?? "N/A";
-            product.Price = dto.Price ?? 0;
-            product.StockQuantity = dto.StockQuantity ?? 0;
-
-            await _productsRepository.UpdateAsync(product);
-
-            return new ProductDto
+            catch (Exception ex)
             {
-                Id = product.Id,
-                Name = product.Name,
-                Description = product.Description,
-                Price = product.Price,
-                StockQuantity = product.StockQuantity,
-                CategoryIds = product.ProductCategories.Select(pc => pc.CategoryId).ToList() // Return category IDs in DTO
-            };
+                _logger.LogError(ex, $"An error occurred while updating product with ID {id}.");
+                throw;
+            }
         }
 
         public async Task<bool> DeleteProductAsync(int id)
         {
-            var product = await _productsRepository.GetByIdAsync(id);
-            if (product == null) return false;
+            try
+            {
+                var product = await _productsRepository.GetByIdAsync(id);
+                if (product == null) return false;
 
-            await _productsRepository.DeleteAsync(product);
-            return true;
+                await _productsRepository.DeleteAsync(product);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"An error occurred while deleting product with ID {id}.");
+                throw;
+            }
+        }
+
+        public class CategoryNotFoundException : Exception
+        {
+            public CategoryNotFoundException(int categoryId)
+                : base($"Category with ID {categoryId} does not exist.")
+            {
+            }
         }
     }
-
 }
